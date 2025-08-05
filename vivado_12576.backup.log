@@ -1,0 +1,28 @@
+#-----------------------------------------------------------
+# Vivado v2018.3 (64-bit)
+# SW Build 2405991 on Thu Dec  6 23:38:27 MST 2018
+# IP Build 2404404 on Fri Dec  7 01:43:56 MST 2018
+# Start of session at: Tue Jul 22 15:52:44 2025
+# Process ID: 12576
+# Current directory: C:/Users/Antonio/Desktop/progetto reti/Reti2025
+# Command line: vivado.exe -gui_launcher_event rodinguilauncherevent50688 C:\Users\Antonio\Desktop\progetto reti\Reti2025\esempio_funzionamento.xpr
+# Log file: C:/Users/Antonio/Desktop/progetto reti/Reti2025/vivado.log
+# Journal file: C:/Users/Antonio/Desktop/progetto reti/Reti2025\vivado.jou
+#-----------------------------------------------------------
+start_gui
+open_project {C:/Users/Antonio/Desktop/progetto reti/Reti2025/esempio_funzionamento.xpr}
+INFO: [Project 1-313] Project file moved from 'C:/Users/Antonio/Desktop/progetto reti/esempio_funzionamento' since last save.
+WARNING: [Project 1-312] File not found as 'C:/Users/Antonio/Desktop/progetto reti/Reti2025/esempio_funzionamento.srcs/sources_1/new/fsm.vhd'; using path 'C:/Users/Antonio/Desktop/progetto reti/esempio_funzionamento/esempio_funzionamento.srcs/sources_1/new/fsm.vhd' instead.
+WARNING: [Project 1-312] File not found as 'C:/Users/Antonio/Desktop/progetto reti/Reti2025/esempio_funzionamento.srcs/constrs_1/new/clock.xdc'; using path 'C:/Users/Antonio/Desktop/progetto reti/esempio_funzionamento/esempio_funzionamento.srcs/constrs_1/new/clock.xdc' instead.
+WARNING: [Project 1-312] File not found as 'C:/Users/Antonio/Desktop/progetto reti/Reti2025/esempio_funzionamento.srcs/sim_1/new/fsm_testBench.vhd'; using path 'C:/Users/Antonio/Desktop/progetto reti/esempio_funzionamento/esempio_funzionamento.srcs/sim_1/new/fsm_testBench.vhd' instead.
+Scanning sources...
+Finished scanning sources
+WARNING: [Project 1-509] GeneratedRun file for 'synth_1' not found
+INFO: [filemgmt 56-1] IPUserFilesDir: Directory not found as 'C:/Users/Antonio/Desktop/progetto reti/Reti2025/esempio_funzionamento.ip_user_files'; using path 'C:/Users/Antonio/Desktop/progetto reti/esempio_funzionamento/esempio_funzionamento.ip_user_files' instead.
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository 'C:/Xilinx/Vivado/2018.3/data/ip'.
+open_project: Time (s): cpu = 00:00:12 ; elapsed = 00:00:09 . Memory (MB): peak = 772.473 ; gain = 117.965
+update_compile_order -fileset sources_1
+exit
+INFO: [Common 17-206] Exiting Vivado at Tue Jul 22 18:15:05 2025...

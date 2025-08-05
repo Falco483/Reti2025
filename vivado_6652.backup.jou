@@ -1,0 +1,13 @@
+#-----------------------------------------------------------
+# Vivado v2018.3 (64-bit)
+# SW Build 2405991 on Thu Dec  6 23:38:27 MST 2018
+# IP Build 2404404 on Fri Dec  7 01:43:56 MST 2018
+# Start of session at: Tue Jul 22 15:51:42 2025
+# Process ID: 6652
+# Current directory: C:/Users/Antonio/Desktop/progetto reti/Reti2025
+# Command line: vivado.exe -gui_launcher_event rodinguilauncherevent23216 C:\Users\Antonio\Desktop\progetto reti\Reti2025\project_1.xpr
+# Log file: C:/Users/Antonio/Desktop/progetto reti/Reti2025/vivado.log
+# Journal file: C:/Users/Antonio/Desktop/progetto reti/Reti2025\vivado.jou
+#-----------------------------------------------------------
+start_gui
+open_project {C:/Users/Antonio/Desktop/progetto reti/Reti2025/project_1.xpr}
