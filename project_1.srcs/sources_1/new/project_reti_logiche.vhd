@@ -1,5 +1,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
 
 entity project_reti_logiche is
     port (
@@ -25,8 +26,13 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     type state_type is (
         IDLE,           -- Stato di attesa
         SETUP,          -- Setup iniziale e lettura parametri
+        READ_K1,
+        READ_K2,
+        READ_S,
+        INIT_COEFF,
+        LOAD_FILTER,
         PROCESSING,     -- Elaborazione dati (stati futuri)
-        DONE_STATE      -- Stato finale
+        DONE_STATE      -- Stato fine parte iniziale
     );
     
     type coeff_array is array (0 to 6) of std_logic_vector(7 downto 0); -- per i coefficienti del filtro
@@ -46,11 +52,12 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     signal K2 : std_logic_vector(7 downto 0);          -- Byte basso di K
     signal filter_select : std_logic;                  -- Tipo filtro (0=ord3, 1=ord5)  da togliere
     signal base_address : std_logic_vector(15 downto 0);  -- Indirizzo base (i_add)
-    signal current_index : std_logic_vector(15 downto 0); -- Indice corrente
+    signal current_index : integer :=0;                  -- Indice corrente
     
     -- Coefficienti e buffer dati
     signal coefficients : coeff_array;                 -- Coefficienti filtro
     signal data_window : data_buffer;                  -- Finestra dati per filtro
+    signal coeff_counter : integer := 0;
     
     -- Segnali di controllo memoria
     signal mem_addr_int : std_logic_vector(15 downto 0);
@@ -90,7 +97,7 @@ begin
     -- PROCESSO: LOGICA NEXT STATE
     -- ============================
     
-    next_state_logic : process(current_state, i_start, setup_complete)
+    next_state_logic : process(current_state)
     begin
         next_state <= current_state;  -- Default: rimani nello stato corrente
         
@@ -116,10 +123,10 @@ begin
                 if ((current_index < 17 and filter_select = '1') or (current_index < 8 and filter_select = '0')) then    
                     next_state <= LOAD_FILTER;
                 else
-                    next_state <= processing;
+                    next_state <= PROCESSING;
                 end if;    
             when PROCESSING =>
-                -- Qui aggiungeremo la logica per passare a DONE_STATE
+                
                 next_state <= DONE_STATE;  -- Placeholder
                 
             when DONE_STATE =>
@@ -159,21 +166,21 @@ begin
                 when READ_K1 =>
                     -- Richiedi lettura di K1 (byte alto)
                     mem_addr_int <= base_address;
-                    current_index <= base_address;
+                    current_index <= to_integer(unsigned(base_address));
                     mem_en_int <= '1';
                     
                 when READ_K2 =>
                     -- Salva K1 e richiedi K2 (byte basso)
                     K(15 downto 8) <= i_mem_data;  -- Salva K1 nel byte alto
                     current_index <= current_index + 1;
-                    mem_addr_int <= std_logic_vector(current_index);
+                    mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     mem_en_int <= '1';
                     
                 when READ_S =>
                     -- Salva K2 e richiedi S (tipo filtro)
                     K(7 downto 0) <= i_mem_data;   -- Salva K2 nel byte basso
                     current_index <= current_index + 1;
-                    mem_addr_int <= std_logic_vector(current_index);
+                    mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     mem_en_int <= '1';
                     
                 when INIT_COEFF =>
@@ -184,17 +191,19 @@ begin
                     -- Inizializza coefficienti in base al filtro
                     if filter_select = '0' then 
                         current_index <= current_index + 1;
-                        mem_addr_int <= std_logic_vector(current_index);
+                    mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     else 
                         current_index <= current_index + 8;
-                        mem_addr_int <= std_logic_vector(current_index);
+                    mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                         
                     end if;
                     
                 when LOAD_FILTER =>
-                
+                    coefficients(coeff_counter) <= i_mem_data;
+                    current_index <= current_index +1;
+                    mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
+                    mem_en_int <= '1';
                     
-                        
                 when PROCESSING =>
                     -- Qui implementeremo la logica di elaborazione
                     mem_en_int <= '0';
