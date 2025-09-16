@@ -56,8 +56,23 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     
     -- Coefficienti e buffer dati
     signal coefficients : coeff_array;                 -- Coefficienti filtro
-    signal data_window : data_buffer;                  -- Finestra dati per filtro
+    signal data_window : data_buffer := (
+    0 => (others => '0'),
+    1 => (others => '0'),
+    2 => (others => '0'),
+    3 => (others => '0'),
+    4 => (others => '0'),
+    5 => (others => '0'),
+    6 => (others => '0')
+);                 -- Finestra dati per filtro
     signal coeff_counter : integer := 0;
+    
+    -- segnali per scrittura
+    signal R1 : std_logic_vector(7 downto 0);
+    signal current_R : std_logic_vector(7 downto 0);
+    signal start_load : integer := 0;
+    signal start_compute : integer :=0 ;
+    signal to_normalize : std_logic_vector ( 7 downto 0);
     
     -- Segnali di controllo memoria
     signal mem_addr_int : std_logic_vector(15 downto 0);
@@ -126,8 +141,10 @@ begin
                     next_state <= PROCESSING;
                 end if;    
             when PROCESSING =>
+                if ( mem_addr_int = R1) then 
+                    next_state <= DONE_STATE;  -- Placeholder
+                end if;
                 
-                next_state <= DONE_STATE;  -- Placeholder
                 
             when DONE_STATE =>
                 if i_start = '0' then
@@ -161,7 +178,7 @@ begin
                 when IDLE =>
                     -- Preparazione per l'inizio
                     base_address <= i_add;  -- metto inizio sequenza in base_address
-                    mem_we_int <= '0';  -- Sempre in lettura durante il setup
+                    mem_we_int <= '0';      -- Sempre in lettura durante il setup
                     
                 when READ_K1 =>
                     -- Richiedi lettura di K1 (byte alto)
@@ -186,7 +203,7 @@ begin
                 when INIT_COEFF =>
                     -- Salva tipo filtro e inizializza coefficienti
                     filter_select <= i_mem_data(0);
-                    mem_en_int <= '0';  -- Disabilita memoria
+                    mem_en_int <= '0';  -- Disabilita memoria ( da ricontrollare ) 
                     
                     -- Inizializza coefficienti in base al filtro
                     if filter_select = '0' then 
@@ -200,13 +217,19 @@ begin
                     
                 when LOAD_FILTER =>
                     coefficients(coeff_counter) <= i_mem_data;
+                    coeff_counter <= coeff_counter +1;
                     current_index <= current_index +1;
                     mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     mem_en_int <= '1';
                     
                 when PROCESSING =>
-                    -- Qui implementeremo la logica di elaborazione
-                    mem_en_int <= '0';
+                    coeff_counter <= 0;
+                    
+                    -- shift a sinistra 
+                    for i in 0 to 5 loop
+                        data_window(i) <= data_window(i+1);
+                    end loop;
+                    -- inserire ultimo numero in fondo ( pos 6)
                     
                 when DONE_STATE =>
                     -- Mantieni tutto disabilitato
@@ -240,10 +263,31 @@ begin
     -- PROCESSI FUTURI
     -- ============================
     
-    -- TODO: Aggiungere processo per PROCESSING
-    -- processing_process : process(i_clk, i_rst)
+    load_buffer : process( start_load )
+    begin
+    
+    
+    end process;
+    
+    
+    calculate_R : process( start_compute )
+    begin
+    
+    
+    end process;
+   
+    normalize : process ( to_normalize )
+    begin
+    
+    
+    end process;
     
     -- TODO: Aggiungere processo per scrittura risultati
     -- write_results_process : process(i_clk, i_rst)
+    
+    
+    --TODO: fare process per inserire i primi quattro numeri in data_window
+    --      e un altro per il calcolo e un altro ancora per la normalizzazzione
+   
 
 end project_reti_logiche_arch;
