@@ -72,7 +72,6 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     signal current_R : std_logic_vector(7 downto 0);
     signal start_load : integer := 0;
     signal start_compute : integer :=0 ;
-    signal to_normalize : std_logic_vector ( 7 downto 0);
     
     -- Segnali di controllo memoria
     signal mem_addr_int : std_logic_vector(15 downto 0);
@@ -82,6 +81,30 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     
     -- Segnali di output
     signal done_int : std_logic;
+    
+        -- ============================
+    -- SEGNALI AGGIUNTIVI DA AGGIUNGERE NELLA SEZIONE SIGNALS
+    -- ============================
+    
+    -- Buffer per finestra scorrevole (7 elementi per ordine 5, ma usiamo sempre 7)
+    type buffer_array is array (0 to 6) of signed(7 downto 0);
+    
+    -- Indice per caricamento buffer
+    signal index_load_buffer : integer := 3; -- Inizializzato a 3 (primi 3 sono 0)
+    
+    -- Variabile per risultato prima della normalizzazione
+    signal to_normalize : signed(31 downto 0) := (others => '0');
+    
+    -- Variabile per risultato normalizzato finale
+    signal normalized_result : signed(7 downto 0) := (others => '0');
+    
+    -- Contatore per elaborazione dati
+    signal processing_counter : integer := 0;
+    
+    -- Segnali di controllo per le funzioni
+    signal load_buffer_enable : std_logic := '0';
+    signal calculate_r_enable : std_logic := '0';
+    signal normalize_enable : std_logic := '0';
 
 begin
 
@@ -265,16 +288,73 @@ begin
     
     load_buffer : process( start_load )
     begin
-    
-    
+            
+            if start_load = 1 then
+                
+                if index_load_buffer < 7 then
+                    -- Prima fase: caricamento iniziale (4 valori)
+                    -- Posizioni 0,1,2 rimangono a 0 (padding iniziale)
+                    data_window(index_load_buffer) <= (i_mem_data);
+                    index_load_buffer <= index_load_buffer + 1;
+                    if (index_load_buffer = 7) then
+                        start_compute <= 1;
+                    end if;
+                    
+                else
+                    -- Fase scorrevole: shift a sinistra e nuovo valore in ultima posizione
+                    -- Sposta tutti gli elementi di una posizione a sinistra
+                    for i in 0 to 5 loop
+                        data_window(i) <= data_window(i + 1);
+                    end loop;
+                    
+                    -- Inserisce nuovo valore nell'ultima posizione
+                    data_window(6) <= (i_mem_data);
+                    -- index_load_buffer rimane a 7
+                    if (index_load_buffer = 7) then
+                        start_compute <= 1;
+                    end if;
+
+                end if;
+                start_load <= 0;
+
+            end if;
+            
+            
+            
+            
     end process;
     
     
     calculate_R : process( start_compute )
+    variable temp_sum : signed(31 downto 0);
+    variable filter_length : integer;
+
     begin
-    
-    
+    if start_compute = 1 then
+        if i_rst = '1' then
+            to_normalize <= (others => '0');
+            
+        elsif rising_edge(i_clk) then
+            
+            if calculate_r_enable = '1' then
+                
+                temp_sum := (others => '0');
+               
+                -- Calcola sommatoria (coefficients[i] * data_buffer[i])
+                for i in 0 to 6 loop
+                    temp_sum := temp_sum + (signed(coefficients(i)) * signed(data_window(i)));
+                end loop;
+                
+                -- Salva risultato in to_normalize
+                to_normalize <= temp_sum;
+                
+                end if;
+                
+            end if;
+            start_compute <= 0;
+        end if;
     end process;
+
    
     normalize : process ( to_normalize )
     begin
