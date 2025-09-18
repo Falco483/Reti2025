@@ -7,7 +7,7 @@ entity project_reti_logiche is
         i_clk : in std_logic;
         i_rst : in std_logic;
         i_start : in std_logic;
-        i_add : in std_logic_vector(15 downto 0);
+        i_add : in std_logic_vector(15 downto 0);            -- Indirizzo base da cui leggere
         o_done : out std_logic;
         o_mem_addr : out std_logic_vector(15 downto 0);
         i_mem_data : in std_logic_vector(7 downto 0);
@@ -244,16 +244,16 @@ begin
                     current_index <= current_index +1;
                     mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     mem_en_int <= '1';
+                    if (next_state = PROCESSING ) then
+                        coeff_counter <= 0;
+                    end if;
                     
                 when PROCESSING =>
-                    coeff_counter <= 0;
-                    
-                    -- shift a sinistra 
-                    for i in 0 to 5 loop
-                        data_window(i) <= data_window(i+1);
-                    end loop;
-                    -- inserire ultimo numero in fondo ( pos 6)
-                    
+                    if ( coeff_counter < to_Integer(unsigned(K))) then 
+                        
+                        coeff_counter <= coeff_counter + 1;
+                    end if;
+                                            
                 when DONE_STATE =>
                     -- Mantieni tutto disabilitato
                     mem_en_int <= '0';
@@ -267,7 +267,7 @@ begin
     -- PROCESSO: CONTROLLI OUTPUT
     -- ============================
     
-    output_control : process(current_state)
+output_control : process(current_state)
     begin
         -- Valori di default
         done_int <= '0';
@@ -296,9 +296,6 @@ begin
                     -- Posizioni 0,1,2 rimangono a 0 (padding iniziale)
                     data_window(index_load_buffer) <= (i_mem_data);
                     index_load_buffer <= index_load_buffer + 1;
-                    if (index_load_buffer = 7) then
-                        start_compute <= 1;
-                    end if;
                     
                 else
                     -- Fase scorrevole: shift a sinistra e nuovo valore in ultima posizione
@@ -309,33 +306,26 @@ begin
                     
                     -- Inserisce nuovo valore nell'ultima posizione
                     data_window(6) <= (i_mem_data);
-                    -- index_load_buffer rimane a 7
+                    -- index_load_buffer rimane a 7;
+
+                end if;
                     if (index_load_buffer = 7) then
                         start_compute <= 1;
                     end if;
-
-                end if;
                 start_load <= 0;
 
             end if;
-            
-            
-            
-            
+             
     end process;
     
     
-    calculate_R : process( start_compute )
+    
+calculate_R : process( start_compute )
     variable temp_sum : signed(31 downto 0);
     variable filter_length : integer;
 
     begin
-    if start_compute = 1 then
-        if i_rst = '1' then
-            to_normalize <= (others => '0');
-            
-        elsif rising_edge(i_clk) then
-            
+        if start_compute = 1 then      
             if calculate_r_enable = '1' then
                 
                 temp_sum := (others => '0');
@@ -348,18 +338,76 @@ begin
                 -- Salva risultato in to_normalize
                 to_normalize <= temp_sum;
                 
-                end if;
-                
-            end if;
+            end if;            
+            
             start_compute <= 0;
         end if;
     end process;
 
    
-    normalize : process ( to_normalize )
-    begin
-    
-    
+normalize : process ( to_normalize )
+
+    variable temp_result : signed(31 downto 0);   
+    variable shift_4, -- Shift fino a 16
+             shift_6, -- Shift fino a 64
+             shift_8, -- Shift fino a 256
+             shift_10 : signed(31 downto 0);    -- Shift fino a 1024
+    variable final_result : signed(31 downto 0);
+    begin            
+        temp_result := to_normalize;
+        
+        if filter_select = '0' then
+        -- Filtro ordine 3: normalizzazione 1/12
+            -- 1/12 = 1/16 + 1/64 + 1/256 + 1/1024 = >>4 + >>6 + >>8 + >>10
+            
+            -- Calcola shift
+            shift_4 := temp_result(31) & temp_result(31 downto 1);   -- >>1 equivale a /2, >>4 equivale a /16
+            shift_4 := shift_4(31) & shift_4(31 downto 1);
+            shift_4 := shift_4(31) & shift_4(31 downto 1);
+            shift_4 := shift_4(31) & shift_4(31 downto 1);
+            
+            shift_6 := shift_4(31) & shift_4(31 downto 1);
+            shift_6 := shift_6(31) & shift_6(31 downto 1);
+            
+            shift_8 := shift_6(31) & shift_6(31 downto 1);
+            shift_8 := shift_8(31) & shift_8(31 downto 1);
+            
+            shift_10 := shift_8(31) & shift_8(31 downto 1);
+            shift_10 := shift_10(31) & shift_10(31 downto 1);
+            
+            -- Correzione per numeri negativi
+            final_result := shift_4 + shift_6 + shift_8 + shift_10;
+            if shift_4 < 0 then
+                final_result := final_result + 4;
+            end if;
+                        
+        else
+           shift_6 := temp_result(31) & temp_result(31 downto 1);
+           shift_6 := shift_6(31) & shift_6(31 downto 1);
+           shift_6 := shift_6(31) & shift_6(31 downto 1);
+           shift_6 := shift_6(31) & shift_6(31 downto 1);
+           shift_6 := shift_6(31) & shift_6(31 downto 1);
+           shift_6 := shift_6(31) & shift_6(31 downto 1);
+
+           shift_10 := shift_6(31) & shift_6(31 downto 1);
+           shift_10 := shift_10(31) & shift_10(31 downto 1);
+           shift_10 := shift_10(31) & shift_10(31 downto 1);
+           shift_10 := shift_10(31) & shift_10(31 downto 1);
+           
+           -- Correzione per numeri negativi
+            final_result := shift_6 + shift_10;
+            if shift_6 < 0 then
+                final_result := final_result + 2;
+            end if;
+        end if;
+        
+        if final_result > 127 then
+            final_result := "01111111";
+        end if;
+        if final_result < -128 then
+            final_result := "10000000";
+        end if;
+      
     end process;
     
     -- TODO: Aggiungere processo per scrittura risultati
