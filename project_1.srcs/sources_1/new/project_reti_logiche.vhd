@@ -105,6 +105,7 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     signal load_buffer_enable : std_logic := '0';
     signal calculate_r_enable : std_logic := '0';
     signal normalize_enable : std_logic := '0';
+    signal write_result_enable : std_logic := '0';
 
 begin
 
@@ -181,6 +182,19 @@ begin
     -- PROCESSO: CONTROLLO MEMORIA E SETUP
     -- ============================
     
+    -- Ciclo 1: PROCESSING : Load dato 0 nel buffer
+    -- Ciclo 2: PROCESSING : Calcola filtro per posizione 0  
+    -- Ciclo 3: PROCESSING : Normalizza risultato 0
+    -- Ciclo 4: PROCESSING : Scrivi R0 a indirizzo (ADD+17+K+0)
+
+    -- Ciclo 5: PROCESSING : Load dato 1 (shift buffer)
+    -- ..
+    -- Ciclo 8: PROCESSING : Scrivi R1 a indirizzo (ADD+17+K+1)
+       
+    -- ( itero k volte )
+    
+    -- Ultimo ciclo: results_written = K & next_state = DONE_STATE
+    
     memory_control_process : process(i_clk, i_rst)
     begin
         if i_rst = '1' then
@@ -250,9 +264,10 @@ begin
                     
                 when PROCESSING =>
                     if ( coeff_counter < to_Integer(unsigned(K))) then 
-                        
+                        -- qua va uno start_load = 1 no?
                         coeff_counter <= coeff_counter + 1;
                     end if;
+                    -- e poi else (next_state = done_state);
                                             
                 when DONE_STATE =>
                     -- Mantieni tutto disabilitato
@@ -282,9 +297,9 @@ output_control : process(current_state)
         end case;
     end process;
 
-    -- ============================
-    -- PROCESSI FUTURI
-    -- ============================
+    -- ==============
+    -- LOAD BUFFER
+    -- ==============
     
     load_buffer : process( start_load )
     begin
@@ -319,7 +334,9 @@ output_control : process(current_state)
     end process;
     
     
-    
+    -- ======================
+    -- CALCOLO RISULTATO
+    -- ======================
 calculate_R : process( start_compute )
     variable temp_sum : signed(31 downto 0);
     variable filter_length : integer;
@@ -330,12 +347,12 @@ calculate_R : process( start_compute )
                 
                 temp_sum := (others => '0');
                
-                -- Calcola sommatoria (coefficients[i] * data_buffer[i])
+                -- sommatoria (coefficients[i] * data_buffer[i])
                 for i in 0 to 6 loop
                     temp_sum := temp_sum + (signed(coefficients(i)) * signed(data_window(i)));
                 end loop;
                 
-                -- Salva risultato in to_normalize
+                -- risultato in to_normalize
                 to_normalize <= temp_sum;
                 
             end if;            
@@ -345,6 +362,10 @@ calculate_R : process( start_compute )
     end process;
 
    
+   
+    -- ===================
+    -- NORMALIZZAZIONE
+    -- ===================
 normalize : process ( to_normalize )
 
     variable temp_result : signed(31 downto 0);   
@@ -360,7 +381,7 @@ normalize : process ( to_normalize )
         -- Filtro ordine 3: normalizzazione 1/12
             -- 1/12 = 1/16 + 1/64 + 1/256 + 1/1024 = >>4 + >>6 + >>8 + >>10
             
-            -- Calcola shift
+            -- Calcolo shift
             shift_4 := temp_result(31) & temp_result(31 downto 1);   -- >>1 equivale a /2, >>4 equivale a /16
             shift_4 := shift_4(31) & shift_4(31 downto 1);
             shift_4 := shift_4(31) & shift_4(31 downto 1);
@@ -408,12 +429,37 @@ normalize : process ( to_normalize )
             final_result := "10000000";
         end if;
       
+        write_result_enable <= '1';
     end process;
+    
+    
+    -- ==========================
+    -- PROCESSI FUTURI
+    -- ==========================
     
     -- TODO: Aggiungere processo per scrittura risultati
     -- write_results_process : process(i_clk, i_rst)
-    
-    
+write_results_process : process(write_result_enable)
+    begin
+        if write_result_enable = '1' then
+                
+                -- Indirizzo scrittura (che dovrebbe essere ADD + K + R[n-1] ?credo)
+                mem_addr_int <= std_logic_vector(to_unsigned(
+                    to_integer(unsigned(base_address)) + 17 + to_integer(unsigned(K)) + coeff_counter, 16)
+                );
+                    
+                -- Wirte in memoria
+                mem_data_out_int <= std_logic_vector(normalized_result);
+                mem_we_int <= '1';
+                mem_en_int <= '1';
+                
+                -- Disabilito? o non serve?
+                write_result_enable <= '0';
+        else
+             mem_we_int <= '0';
+        end if;
+    end process;
+        
     --TODO: fare process per inserire i primi quattro numeri in data_window
     --      e un altro per il calcolo e un altro ancora per la normalizzazzione
    
