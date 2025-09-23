@@ -24,6 +24,7 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     -- ============================
     
     type state_type is (
+        NULL_STATE,
         IDLE,           -- Stato di attesa
         SETUP,          -- Setup iniziale e lettura parametri
         READ_K1,
@@ -72,8 +73,8 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     -- segnali per scrittura
     signal R1 : std_logic_vector(7 downto 0);
     signal current_R : std_logic_vector(7 downto 0);
-    signal start_load : integer := 0;
-    signal start_compute : integer :=0 ;
+    signal start_load : std_logic := '0';
+    signal start_compute : std_logic := '0' ;
     
     -- Segnali di controllo memoria
     signal mem_addr_int : std_logic_vector(15 downto 0);
@@ -128,8 +129,8 @@ begin
 state_update_process : process(i_clk, i_rst)
     begin
         if i_rst = '1' then
-            current_state <= IDLE;
-        elsif rising_edge(i_clk) then
+            current_state <= NULL_STATE;
+        elsif rising_edge(i_clk) then           -- MAGARI IN SETTING_EDGE  
             current_state <= next_state;
         end if;
     end process;
@@ -159,12 +160,7 @@ next_state_logic : process(current_state)
                 
             when INIT_COEFF =>
                 next_state <= LOAD_FILTER;
-                coeff_counter <= 0;
-                if filter_select = '0' then 
-                    current_index <= current_index + 1;
-                else 
-                    current_index <= current_index + 8;
-                end if;
+                
                 
             when LOAD_FILTER =>
                 if ((current_index < 17 and filter_select = '1') or (current_index < 8 and filter_select = '0')) then    
@@ -177,18 +173,28 @@ next_state_logic : process(current_state)
                 next_state <= POST_PROCESSING;
                 
             when POST_PROCESSING =>
-                if ( mem_addr_int = R1) then 
+                --if ( mem_addr_int = R1) then 
+                if (coeff_counter >= to_integer(unsigned(K))+3) then 
                     next_state <= DONE_STATE;
+                    
                 else                    
                     -- e poi else (next_state = done_state); direi
                     next_state <= PROCESSING;
                 end if;
 
-            when DONE_STATE =>
-                if i_start = '0' then
-                    next_state <= IDLE;
-                end if;
+            when DONE_STATE =>                   
+                next_state <= NULL_STATE;
                 
+            when others => 
+                if i_start = '1' then 
+                    if done_int = '0' then
+                        next_state <= IDLE;
+                    else 
+                        next_state <= NULL_STATE;
+                    end if;
+                else 
+                    next_state <= NULL_STATE;
+                end if;
         end case;
     end process;
 
@@ -214,6 +220,7 @@ memory_control_process : process(i_clk, i_rst)
         if i_rst = '1' then
             -- Reset di tutti i segnali
             K <= (others => '0');
+            done_int <= '0';
             filter_select <= '0';
             base_address <= (others => '0');
             coefficients <= (others => (others => '0'));
@@ -221,7 +228,7 @@ memory_control_process : process(i_clk, i_rst)
             mem_data_out_int <= (others => '0');
             mem_we_int <= '0';      -- Sempre in lettura durante il setup
             mem_en_int <= '1';
-            
+     
         elsif rising_edge(i_clk) then
             
             case current_state is
@@ -269,44 +276,47 @@ memory_control_process : process(i_clk, i_rst)
                     end if;
                     
                 when PROCESSING =>
-                    if ( coeff_counter < to_Integer(unsigned(K))) then 
+                    if (coeff_counter < to_integer(unsigned(K))+3) then 
                         -- qua va uno start_load = 1 no?
-                        start_load <= 1;
+                        start_load <= '1';
                         coeff_counter <= coeff_counter + 1;
-                        mem_we_int <= '1'; -- Attivo la write per la scrittura del risultato @ POST_PROCESSING
+                        mem_we_int <= '1';          -- Attivo la write per la scrittura del risultato @ POST_PROCESSING
+                    else 
+                        
                     end if;
                 
                 when POST_PROCESSING =>
                     write_result_enable <= '1';
-                    mem_we_int <= '0'; -- Disattivo write per la lettura nel prossimo @ PROCESSING
+                    mem_we_int <= '0';              -- Disattivo write per la lettura nel prossimo @ PROCESSING
                                             
                 when DONE_STATE =>
                     -- tutto disabilitato 
+                    done_int <= '1';
+                    K <= (others => '0');
+                    filter_select <= '0';
+                    base_address <= (others => '0');
+                    coefficients <= (others => (others => '0'));
+                    mem_addr_int <= (others => '0');
+                    mem_data_out_int <= (others => '0');
+                    mem_we_int <= '0';      -- Sempre in lettura durante il setup
                     mem_en_int <= '0';
-                    
+                
+                when others =>
+                    if i_start = '1' then 
+                        if done_int = '0' then
+                            mem_en_int <= '1';
+                        end if;
+                    elsif i_start = '0' then
+                        if done_int = '1' then
+                            done_int <= '0';
+                        end if;
+                    end if;
             end case;
             
         end if;
     end process;
 
-    -- ============================
-    -- PROCESSO: CONTROLLI OUTPUT
-    -- ============================
     
-output_control : process(current_state)
-    begin
-        -- Valori di default
-        done_int <= '0';
-        
-        case current_state is
-            when IDLE | READ_K1 | READ_K2 | READ_S | INIT_COEFF | PROCESSING | POST_PROCESSING =>
-                done_int <= '0';
-                
-            when DONE_STATE =>
-                done_int <= '1';
-                
-        end case;
-    end process;
 
     -- ==============
     -- LOAD BUFFER
@@ -314,34 +324,36 @@ output_control : process(current_state)
     
 load_buffer : process( start_load )
     begin
-            if start_load = 1 then
+        if start_load = '1' then
+        
+            if index_load_buffer < 7 then
+                -- Prima fase: caricamento iniziale (4 valori)
+                -- Posizioni 0,1,2 rimangono a 0 (padding iniziale)
+                data_window(index_load_buffer) <= (i_mem_data);
+                index_load_buffer <= index_load_buffer + 1;
+            else
+                -- Fase scorrevole: shift a sinistra e nuovo valore in ultima posizione
+                -- Sposta tutti gli elementi di una posizione a sinistra
+                for i in 0 to 5 loop
+                    data_window(i) <= data_window(i + 1);
+                end loop;
                 
-                if index_load_buffer < 7 then
-                    -- Prima fase: caricamento iniziale (4 valori)
-                    -- Posizioni 0,1,2 rimangono a 0 (padding iniziale)
-                    data_window(index_load_buffer) <= (i_mem_data);
-                    index_load_buffer <= index_load_buffer + 1;
-                    
-                else
-                    -- Fase scorrevole: shift a sinistra e nuovo valore in ultima posizione
-                    -- Sposta tutti gli elementi di una posizione a sinistra
-                    for i in 0 to 5 loop
-                        data_window(i) <= data_window(i + 1);
-                    end loop;
-                    
-                    -- Inserisce nuovo valore nell'ultima posizione
+                -- Inserisce nuovo valore nell'ultima posizione
+                if (coeff_counter < to_integer(unsigned(K))) then             -- Quando arrivo a K, metto 0 in K+1, K+2, K+3
                     data_window(6) <= (i_mem_data);
-                    -- index_load_buffer rimane a 7;
-
+                else 
+                    data_window(6) <= "00000000";
                 end if;
-                    if (index_load_buffer = 7) then
-                        start_compute <= 1;
-                    end if;
-                start_load <= 0;
+                -- index_load_buffer rimane a 7;
+
             end if;
-             
+                if (index_load_buffer = 7) then
+                    start_compute <= '1';
+                end if;
+            start_load <= '0';
+        end if;
     end process;
-    
+
     
     -- ======================
     -- CALCOLO RISULTATO
@@ -351,7 +363,7 @@ calculate_R : process( start_compute )
     variable filter_length : integer;
 
     begin
-        if start_compute = 1 then      
+        if start_compute = '1' then      
             if calculate_r_enable = '1' then
                 
                 temp_sum := (others => '0');
@@ -366,7 +378,7 @@ calculate_R : process( start_compute )
                 
             end if;            
             
-            start_compute <= 0;            
+            start_compute <= '0';            
         end if;
     end process;
 
@@ -392,7 +404,7 @@ normalize : process ( to_normalize )
             
             -- Calcolo shift
             shift_4 := temp_result(31) & temp_result(31 downto 1);   -- >>1 equivale a /2, >>4 equivale a /16
-            shift_4 := shift_4(31) & shift_4(31 downto 1);
+            shift_4 := shift_4  (31) & shift_4(31 downto 1);
             shift_4 := shift_4(31) & shift_4(31 downto 1);
             shift_4 := shift_4(31) & shift_4(31 downto 1);
             
@@ -432,14 +444,15 @@ normalize : process ( to_normalize )
         end if;
         
         if final_result > 127 then
-            final_result := "01111111";
+            -- final_result := "01111111";
+            final_result := to_signed(127, final_result'length);
         end if;
         if final_result < -128 then
-            final_result := "10000000";
+            -- final_result := "10000000";
+            final_result := to_signed(-128, final_result'length);
         end if;
-      
-        
-        next_state <= POST_PROCESSING;
+         
+        normalized_result <= final_result(7 downto 0);
     end process;
     
     
