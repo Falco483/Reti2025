@@ -132,7 +132,7 @@ begin
                     next_state <= PROCESSING;
                     
                 when PROCESSING =>
-                    if processing_counter >= to_integer(unsigned(K)) then
+                    if processing_counter > to_integer(unsigned(K)) then
                         next_state <= DONE_STATE;
                     end if;
                     
@@ -164,6 +164,7 @@ begin
         variable correction : signed(31 downto 0);
         variable final_result : signed(31 downto 0);
         variable acc : signed(31 downto 0); -- più grande per contenere il risultato
+        variable to_ending : std_logic;
         
     begin
         acc := "00000000000000000000000000000000";
@@ -173,6 +174,7 @@ begin
         shift_6 := "00000000000000000000000000000000";
         shift_8 := "00000000000000000000000000000000";
         shift_10 := "00000000000000000000000000000000";
+        to_ending := '0';
         
         if i_rst = '1' then
             -- Reset
@@ -184,7 +186,7 @@ begin
             mem_addr_int <= (others => '0');
             mem_data_out_int <= (others => '0');
             mem_we_int <= '0';
-            mem_en_int <= '1';
+            mem_en_int <= '0';
             done_int <= '0';
             current_index <= 0;
             coeff_counter <= 0;
@@ -200,6 +202,8 @@ begin
                 
                 when IDLE =>
                     base_address <= i_add;
+                    mem_en_int <= '1';
+                    mem_we_int <= '0';
                     current_index <= to_integer(unsigned(i_add))+1;
                     
                 when READ_K1 =>
@@ -249,7 +253,7 @@ begin
                     --  mem_addr_int <= std_logic_vector(to_unsigned(     to_integer(unsigned(base_address)) + 17 + processing_counter, 16));
                 
                 when PROCESSING =>
-                if processing_counter < to_integer(unsigned(K)) then
+                if processing_counter < to_integer(unsigned(K) + 1) then
                     
                     case processing_phase is
                     
@@ -286,7 +290,11 @@ begin
                                 for i in 0 to 5 loop
                                     data_window(i) <= data_window(i + 1);
                                 end loop;
-                                data_window(6) <= signed(i_mem_data);
+                                if processing_counter > to_integer(unsigned(K)- 4) then
+                                    data_window(6) <= "00000000" ;
+                                else    
+                                    data_window(6) <= signed(i_mem_data);
+                                end if;
                                 
                                 -- Prepara prossimo indirizzo
                                 current_index <= current_index + 1;
@@ -360,9 +368,9 @@ begin
                                 end if;
                                 
                                 -- Saturation
-                                if final_result > 127 then
+                                if final_result > to_signed(127, final_result'length) then
                                     normalized_result <= to_signed(127, 8);
-                                elsif final_result < -128 then
+                                elsif final_result < to_signed(-128, final_result'length) then
                                     normalized_result <= to_signed(-128, 8);
                                 else
                                     normalized_result <= final_result(7 downto 0);
@@ -373,19 +381,26 @@ begin
                             
                         when 5 => -- WRITE PHASE
                             mem_addr_int <= std_logic_vector(to_unsigned(
-                                to_integer(unsigned(base_address)) + 17 + 
+                                to_integer(unsigned(base_address)) + 16 + 
                                 to_integer(unsigned(K)) + processing_counter, 16));
                             mem_data_out_int <= std_logic_vector(normalized_result);
-                            mem_we_int <= '1';
                             
                             processing_phase <= 6;
                             
-                        when 6 =>                        
+                        when 6 =>
+                            mem_we_int <= '1';
+
+                            processing_phase <= 7;
+                            
+                        when 7 =>
+                            processing_phase <= 8;
+                            
+                        when 8 =>                        
                             mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                             if processing_counter + 1 < to_integer(unsigned(K)) then
                                 processing_phase <= 0; -- Continua con WAIT
                             else
-                                processing_phase <= 7; -- Finito
+                                processing_phase <= 9; -- Finito
                             end if;
                             mem_we_int <= '0'; 
                             
@@ -405,7 +420,22 @@ begin
                     done_int <= '1';
                     mem_we_int <= '0';
                     mem_en_int <= '0';
-
+                    K <= (others => '0');
+                    filter_select <= '0';
+                    base_address <= (others => '0');
+                    coefficients <= (others => (others => '0'));
+                    data_window <= (others => (others => '0'));
+                    mem_addr_int <= (others => '0');
+                    mem_data_out_int <= (others => '0');
+                    mem_we_int <= '0';
+                    mem_en_int <= '0';
+                    current_index <= 0;
+                    coeff_counter <= 0;
+                    processing_counter <= 0;
+                    processing_phase <= 0;
+                    buffer_index <= 3;
+                    temp_sum <= (others => '0');
+                    normalized_result <= (others => '0');
 
             when others =>
                 null;
