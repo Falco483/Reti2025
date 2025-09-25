@@ -201,6 +201,7 @@ begin
             case current_state is
                 
                 when IDLE =>
+                    done_int <= '0';
                     base_address <= i_add;
                     mem_en_int <= '1';
                     mem_we_int <= '0';
