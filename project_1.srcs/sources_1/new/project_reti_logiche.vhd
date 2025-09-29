@@ -26,10 +26,13 @@ architecture project_reti_logiche_arch of project_reti_logiche is
     type state_type is (
         IDLE,           
         READ_K1,
+        SETTLE_K1,
         READ_K2,
+        SETTLE_K2,
         READ_S,
-        SET_S,
         SETTLE_S,
+        SET_S,
+        SETTLE_PRELOAD,
         LOAD_COEFF,
         SETTLE_COEFF,
         INIT_PROCESSING,
@@ -94,6 +97,7 @@ begin
     begin
         if i_rst = '1' then
             current_state <= IDLE;
+            next_state <= IDLE;
         elsif rising_edge(i_clk) then
             current_state <= next_state;
             
@@ -104,18 +108,28 @@ begin
                     end if;
                     
                 when READ_K1 =>
+                    next_state <= SETTLE_K1;
+                
+                when SETTLE_K1 =>
                     next_state <= READ_K2;
                     
+
                 when READ_K2 =>
+                    next_state <= SETTLE_K2;
+                
+                when SETTLE_K2 =>
                     next_state <= READ_S;
                     
                 when READ_S =>
+                    next_state <= SETTLE_S;
+                    
+                when SETTLE_S =>
                     next_state <= SET_S;
                     
                 when SET_S =>
-                    next_state <= SETTLE_S;
-                    
-                when SETTLE_S=>
+                    next_state <= SETTLE_PRELOAD;
+                
+                when SETTLE_PRELOAD =>
                     next_state <= LOAD_COEFF;
                     
                 when LOAD_COEFF =>
@@ -201,36 +215,41 @@ begin
             case current_state is
                 
                 when IDLE =>
-                    done_int <= '0';
-                    base_address <= i_add;
-                    mem_en_int <= '1';
-                    mem_we_int <= '0';
-                    current_index <= to_integer(unsigned(i_add))+1;
-                    
+                        done_int <= '0';
+                        base_address <= i_add;
+                        mem_en_int <= '1';
+                        mem_we_int <= '0';
+                        current_index <= to_integer(unsigned(i_add));
+                                            
                 when READ_K1 =>
                     mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     current_index <= current_index + 1;
-                    
+                
+                -- SETTLE_K1
+                
                 when READ_K2 =>
                     K(15 downto 8) <= i_mem_data;
                     mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     current_index <= current_index + 1;
-                    
+                
+                -- SETTLE_K2
+                
                 when READ_S =>
                     K(7 downto 0) <= i_mem_data;
                     mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));           
-                   
+         
+                -- SETTLE_S here just to make it settle
+
                 when SET_S =>
                     filter_select <= i_mem_data(0);
                     if i_mem_data(0) = '0' then 
-                        current_index <= current_index; -- Start at C1 for order 3
+                        current_index <= current_index+1; -- Start at C1 for order 3
                         mem_addr_int <= std_logic_vector(to_unsigned(current_index, 16));
                     else 
-                        current_index <= current_index + 7; -- Start at C8 for order 5
-                        mem_addr_int <= std_logic_vector(to_unsigned(current_index + 7, 16));
+                        current_index <= current_index + 8; -- Start at C8 for order 5
+                        mem_addr_int <= std_logic_vector(to_unsigned(current_index + 6, 16));
                     end if;
                     
-                    -- SETTLE_S here just to make it settle
                     
                 when LOAD_COEFF =>
                     -- Load [coeff_counter]-esimo element
