@@ -1,3 +1,5 @@
+--  Codici Persona: 10897754, 10920574
+
     library IEEE;
     use IEEE.std_logic_1164.all;
     use IEEE.numeric_std.all;
@@ -160,18 +162,11 @@
             
         end process;
     
-        -- =============================
-        --  PROCESSO: LOGICA NEXT STATE
-        -- =============================
-        
-        next_state_logic : process(current_state, i_start)
-        begin
-           
-        end process;
     
-        -- ==================================
-        --   PROCESSO: CONTROLLO PRINCIPALE
-        -- ==================================
+    
+        -- =========================
+        --   MAIN CONTROL PROCESS
+        -- =========================
         
         main_control_process : process(i_clk, i_rst)
             variable shift_4, shift_6, shift_8, shift_10 : signed(31 downto 0);
@@ -306,7 +301,7 @@
                                     end if;
                                     
                                 else
-                                    -- Sliding window: shift left e inserisci nuovo
+                                    -- shift left e inserisci nuovo
                                     for i in 0 to 5 loop
                                         data_window(i) <= data_window(i + 1);
                                     end loop;
@@ -316,7 +311,7 @@
                                         data_window(6) <= signed(i_mem_data);
                                     end if;
                                     
-                                    -- Prepara prossimo indirizzo
+                                    -- prssimo indirizzo
                                     current_index <= current_index + 1;
                                     mem_addr_int <= std_logic_vector(to_unsigned(current_index + 1, 16));
                                     
@@ -327,11 +322,11 @@
                                 acc := (others => '0');
                                 processing_counter <= processing_counter + 1;
             
-                                -- Convolution: sum(coefficients[i] * data_window[i])
+                                -- sum(coefficients[i] * data_window[i])
                                 for i in 0 to 6 loop
                                     acc := acc + (coefficients(i) * data_window(i));
                                 end loop;
-                                temp_sum <= acc; -- aggiorno il segnale solo alla fine
+                                    temp_sum <= acc; -- aggiorno il segnale solo alla fine
     
                                 processing_phase <= 4;
                                 
@@ -420,7 +415,7 @@
                                 if processing_counter + 1 < to_integer(unsigned(K)) then
                                     processing_phase <= 0; -- Continua con WAIT
                                 else
-                                    processing_phase <= 9; -- Finito
+                                    processing_phase <= 9; -- fine
                                 end if;
                                 mem_we_int <= '0'; 
                                 
